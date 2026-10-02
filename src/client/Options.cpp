@@ -1,0 +1,605 @@
+#include "Options.h"
+#include "OptionStrings.h"
+#include "Minecraft.h"
+#include "../platform/log.h"
+#include "../world/Difficulty.h"
+#include <cmath>
+#include <sstream>
+/*static*/
+bool Options::debugGl = false;
+
+/*static*/
+float Options::getTouchButtonSizeScale(int step) {
+	if (step < 0)
+		step = 0;
+	if (step >= TOUCH_BUTTON_SIZE_STEPS)
+		step = TOUCH_BUTTON_SIZE_STEPS - 1;
+	return TOUCH_BUTTON_SIZE_SCALE[step];
+}
+
+void Options::initDefaultValues() {
+	difficulty = Difficulty::NORMAL;
+	hideGui = false;
+	thirdPersonView = false;
+	renderDebug = false;
+	isFlying = false;
+	smoothCamera = true;
+	fixedCamera = false;
+	flySpeed = 1;
+	cameraSpeed = 1;
+	guiScale = 0;
+
+	useMouseForDigging = true;
+	destroyVibration = true;
+	isLeftHanded = false;
+
+	isJoyTouchArea = false;
+	touchButtons = true;
+	touchButtonSize = 0;
+
+	music = 1;
+	sound = 1;
+	sensitivity = 0.5f;
+	touchSensitivity = 2.0f;
+	invertYMouse = false;
+	// Weak GPU (Surface RT): cheap defaults (minimum graphics). All of them
+	// can be changed in Options -> Graphics and are saved to options.txt.
+	viewDistance = 2;
+	bobView = false;
+	anaglyph3d = false;
+	limitFramerate = false;
+	fancyGraphics = false;
+	fog = false;
+	fastFlight = false;
+	graphicsLevel = QUALITY_LEVEL_DEFAULT;
+	graphicsBaseDistance = 2;
+	ambientOcclusion = false;
+	showFps = false;
+	if(minecraft->supportNonTouchScreen())
+		useTouchScreen = false;
+	else
+		useTouchScreen = true;
+	pixelsPerMillimeter = minecraft->platform()->getPixelsPerMillimeter();
+	//useMouseForDigging = true;
+
+	//skin     = "Default";
+	username = "Steve";
+	serverVisible = true;
+
+	keyUp	 = KeyMapping("key.forward", Keyboard::KEY_W);
+	keyLeft  = KeyMapping("key.left", Keyboard::KEY_A);
+	keyDown  = KeyMapping("key.back", Keyboard::KEY_S);
+	keyRight = KeyMapping("key.right", Keyboard::KEY_D);
+	keyJump  = KeyMapping("key.jump", Keyboard::KEY_SPACE);
+	keyBuild = KeyMapping("key.inventory", Keyboard::KEY_E);
+	keySneak = KeyMapping("key.sneak", Keyboard::KEY_LSHIFT);
+#ifndef RPI
+	keyCraft = KeyMapping("key.crafting", Keyboard::KEY_Q);
+	keyDrop  = KeyMapping("key.drop", Keyboard::KEY_Q);
+	keyChat  = KeyMapping("key.chat", Keyboard::KEY_T);
+	keyFog   = KeyMapping("key.fog", Keyboard::KEY_F);
+	keyDestroy=KeyMapping("key.destroy", 88); // @todo @fix
+	keyUse   = KeyMapping("key.use", Keyboard::KEY_U);
+#endif
+
+	//const int Unused = 99999;
+	keyMenuNext     = KeyMapping("key.menu.next",     40);
+	keyMenuPrevious = KeyMapping("key.menu.previous", 38);
+	keyMenuOk       = KeyMapping("key.menu.ok",       13);
+	keyMenuCancel   = KeyMapping("key.menu.cancel",   8);
+
+	int k = 0;
+	keyMappings[k++] = &keyUp;
+	keyMappings[k++] = &keyLeft;
+	keyMappings[k++] = &keyDown;
+	keyMappings[k++] = &keyRight;
+	keyMappings[k++] = &keyJump;
+	keyMappings[k++] = &keySneak;
+	keyMappings[k++] = &keyDrop;
+	keyMappings[k++] = &keyBuild;
+	keyMappings[k++] = &keyChat;
+	keyMappings[k++] = &keyFog;
+	keyMappings[k++] = &keyDestroy;
+	keyMappings[k++] = &keyUse;
+
+	keyMappings[k++] = &keyMenuNext;
+	keyMappings[k++] = &keyMenuPrevious;
+	keyMappings[k++] = &keyMenuOk;
+	keyMappings[k++] = &keyMenuCancel;
+
+//	"Polymorphism" at it's worst. At least it's better to have it here
+//	for now, then to have it spread all around the game code (even if
+//	it would be slightly better performance with it inlined. Should
+//  probably create separate subclasses (or read from file). @fix @todo.
+#if defined(ANDROID) || defined(__APPLE__) || defined(RPI)
+    viewDistance = 2;
+    thirdPersonView = false;
+	useMouseForDigging = true;
+	fancyGraphics = false;
+
+	//renderDebug = true;
+	#if !defined(RPI)
+		keyUp.key		= 19;
+		keyDown.key		= 20;
+		keyLeft.key		= 21;
+		keyRight.key	= 22;
+		keyJump.key		= 23;
+		keyUse.key		= 103;
+		keyDestroy.key	= 102;
+		keyCraft.key    = 109;
+
+		keyMenuNext.key     = 20;
+		keyMenuPrevious.key = 19;
+		keyMenuOk.key       = 23;
+		keyMenuCancel.key   = 4;
+	#endif
+#endif
+
+#if defined(RPI)
+	username = "StevePi";
+	sensitivity *= 0.4f;
+	useMouseForDigging = true;
+#endif
+}
+
+const Options::Option
+	Options::Option::MUSIC				 (0, "options.music",		true, false),
+	Options::Option::SOUND				 (1, "options.sound",		true, false),
+	Options::Option::INVERT_MOUSE		 (2, "options.invertMouse",	false, true),
+	Options::Option::SENSITIVITY		 (3, "options.sensitivity",	true, false),
+	Options::Option::RENDER_DISTANCE	 (4, "options.renderDistance",false, false),
+	Options::Option::VIEW_BOBBING		 (5, "options.viewBobbing",	false, true),
+	Options::Option::ANAGLYPH			 (6, "options.anaglyph",		false, true),
+	Options::Option::LIMIT_FRAMERATE	 (7, "options.limitFramerate",false, true),
+	Options::Option::DIFFICULTY			 (8, "options.difficulty",	false, false),
+	Options::Option::GRAPHICS			 (9, "options.graphics",		false, false),
+	Options::Option::AMBIENT_OCCLUSION	 (10, "options.ao",		false, true),
+	Options::Option::GUI_SCALE			 (11, "options.guiScale",	false, false),
+	Options::Option::THIRD_PERSON		 (12, "options.thirdperson",	false, true),
+    Options::Option::HIDE_GUI			 (13, "options.hidegui",     false, true),
+	Options::Option::SERVER_VISIBLE		 (14, "options.servervisible", false, true),
+	Options::Option::LEFT_HANDED		 (15, "options.lefthanded", false, true),
+	Options::Option::USE_TOUCHSCREEN	 (16, "options.usetouchscreen", false, true),
+	Options::Option::USE_TOUCH_JOYPAD	 (17, "options.usetouchpad", false, true),
+	Options::Option::DESTROY_VIBRATION   (18, "options.destroyvibration", false, true),
+	Options::Option::PIXELS_PER_MILLIMETER(19, "options.pixelspermilimeter", true, false),
+	Options::Option::FOG				 (20, "options.fog",			false, true),
+	Options::Option::TOUCH_BUTTONS		 (21, "options.touchbuttons",	false, true),
+	Options::Option::TOUCH_BUTTON_SIZE	 (22, "options.touchbuttonsize", false, false),
+	Options::Option::TOUCH_SENSITIVITY  (23, "options.touchsensitivity", true, false),
+	Options::Option::SHOW_FPS           (24, "options.showfps",         false, true);
+
+/* private */
+const float Options::SOUND_MIN_VALUE = 0.0f;
+const float Options::SOUND_MAX_VALUE = 1.0f;
+const float Options::MUSIC_MIN_VALUE = 0.0f;
+const float Options::MUSIC_MAX_VALUE = 1.0f;
+const float Options::SENSITIVITY_MIN_VALUE = 0.0f;
+const float Options::SENSITIVITY_MAX_VALUE = 1.0f;
+const float Options::TOUCH_SENSITIVITY_MIN_VALUE = 0.2f;
+const float Options::TOUCH_SENSITIVITY_MAX_VALUE = 2.0f;
+const float Options::PIXELS_PER_MILLIMETER_MIN_VALUE = 3.0f;
+const float Options::PIXELS_PER_MILLIMETER_MAX_VALUE = 4.0f;
+// Two chunks is the lowest value the engine has a sensible meaning for, so
+// the slider and the quality ladder both have to be able to reach it.
+const int Options::RENDER_DISTANCE_MIN = 2;
+const int Options::RENDER_DISTANCE_MAX = 16;
+const int Options::RENDER_DISTANCE_DEFAULT = 2;
+const int Options::QUALITY_LEVEL_MIN = 0;
+const int Options::QUALITY_LEVEL_MAX = 7;
+// Starts on rung 4, which is what the game effectively did before the ladder
+// existed: no fog, no smooth lighting, render distance left alone.
+// Rung 1, i.e. the top of the ladder: fog on, fancy foliage, full distance.
+// The game used to start on rung 4 while only rungs 5..8 shortened the
+// distance, so L could never reach a rung that changed the chunks.
+const int Options::QUALITY_LEVEL_DEFAULT = 0;
+// Rungs 5..8 step the render distance down by two chunks each. The floor is
+// two chunks, so the ladder stops there instead of wrapping back to the
+// maximum (the wrap is what used to make the sky jump).
+const int Options::QUALITY_MIN_DISTANCE = 2;
+const int Options::TOUCH_BUTTON_SIZE_STEPS = 4;
+const float Options::TOUCH_BUTTON_SIZE_SCALE[4] = {
+	0.5f,	// half of the big buttons (the old 14mm default)
+	0.75f,
+	1.0f,	// the big buttons
+	1.5f
+};
+const int DIFFICULY_LEVELS[] = {
+	Difficulty::PEACEFUL,
+	Difficulty::NORMAL
+};
+
+/*private*/
+const char* Options::RENDER_DISTANCE_NAMES[] = {
+	"options.renderDistance.far",
+	"options.renderDistance.normal",
+	"options.renderDistance.short",
+	"options.renderDistance.tiny"
+};
+
+/*private*/
+const char* Options::DIFFICULTY_NAMES[] = {
+	"options.difficulty.peaceful",
+	"options.difficulty.easy",
+	"options.difficulty.normal",
+	"options.difficulty.hard"
+};
+
+/*private*/
+const char* Options::GUI_SCALE[] = {
+	"options.guiScale.auto",
+	"options.guiScale.small",
+	"options.guiScale.normal",
+	"options.guiScale.large"
+};
+
+void Options::update()
+{
+	viewDistance = 2;
+	StringVector optionStrings = optionsFile.getOptionStrings();
+	for (unsigned int i = 0; i < optionStrings.size(); i += 2) {
+		const std::string& key = optionStrings[i];
+		const std::string& value = optionStrings[i+1];
+
+        //LOGI("reading key: %s (%s)\n", key.c_str(), value.c_str());
+        
+		// Multiplayer
+		if (key == OptionStrings::Multiplayer_Username) username = value;
+		if (key == OptionStrings::Multiplayer_ServerVisible) readBool(value, serverVisible);
+
+		// Controls
+        if (key == OptionStrings::Controls_Sensitivity) {
+            float sens;
+            if (readFloat(value, sens)) {
+                // sens is in range [0,1] with default/center at 0.5 (for aesthetics)
+                // We wanna map it to something like [0.3, 0.9] BUT keep 0.5 @ ~0.5...
+                sensitivity = 0.3f + std::pow(1.1f * sens, 1.3f) * 0.42f;
+            }
+        }
+		if (key == OptionStrings::Controls_TouchSensitivity) {
+			float sens;
+			if (readFloat(value, sens)) {
+				if (sens < TOUCH_SENSITIVITY_MIN_VALUE) sens = TOUCH_SENSITIVITY_MIN_VALUE;
+				if (sens > TOUCH_SENSITIVITY_MAX_VALUE) sens = TOUCH_SENSITIVITY_MAX_VALUE;
+				touchSensitivity = sens;
+			}
+		}
+		if (key == OptionStrings::Controls_InvertMouse) {
+			readBool(value, invertYMouse);
+		}
+		if (key == OptionStrings::Controls_IsLefthanded) {
+			readBool(value, isLeftHanded);
+		}
+		if (key == OptionStrings::Controls_UseTouchJoypad) {
+			readBool(value, isJoyTouchArea);
+			if (!minecraft->useTouchscreen())
+				isJoyTouchArea = false;
+		}
+
+		// Feedback
+		if (key == OptionStrings::Controls_FeedbackVibration)
+			readBool(value, destroyVibration);
+
+		// Graphics
+		if (key == OptionStrings::Graphics_Fancy) {
+			readBool(value, fancyGraphics);
+		}
+		if (key == OptionStrings::Graphics_LowQuality) {
+			bool isLow;
+			readBool(value, isLow);
+			if (isLow) {
+				viewDistance = 3;
+				fancyGraphics = false;
+			}
+		}
+		// Game
+		if (key == OptionStrings::Game_DifficultyLevel) {
+			readInt(value, difficulty);
+			// Only support peaceful and normal right now
+			if (difficulty != Difficulty::PEACEFUL && difficulty != Difficulty::NORMAL)
+				difficulty = Difficulty::NORMAL;
+		}
+	}
+    
+#ifdef __APPLE__
+//    if (minecraft->isSuperFast()) {
+//        viewDistance = (viewDistance>0)? --viewDistance : 0;
+//    }
+//    LOGI("Is this card super fast?: %d\n", viewDistance);
+#endif
+    
+    //LOGI("Lefty is: %d\n", isLeftHanded);
+}
+
+void Options::load()
+{
+	StringVector settings = optionsFile.getOptionStrings();
+	for (StringVector::const_iterator it = settings.begin(); it != settings.end(); ++it) {
+		std::string line = *it;
+		size_t colon = line.find(':');
+		if (colon == std::string::npos)
+			continue;
+		std::string key = line.substr(0, colon);
+		std::string value = Util::stringTrim(line.substr(colon + 1));
+		if (key.empty())
+			continue;
+		LOGI("Loading option %s=%s\n", key.c_str(), value.c_str());
+
+		// Game
+		if (key == OptionStrings::Game_DifficultyLevel) {
+			int v;
+			if (readInt(value, v) && v >= Difficulty::PEACEFUL && v <= Difficulty::HARD)
+				difficulty = v;
+		}
+		if (key == OptionStrings::Multiplayer_ServerVisible)
+			readBool(value, serverVisible);
+
+		// Input
+		if (key == OptionStrings::Controls_Sensitivity)
+			readFloat(value, sensitivity);
+		if (key == OptionStrings::Controls_InvertMouse)
+			readBool(value, invertYMouse);
+		if (key == OptionStrings::Controls_IsLefthanded)
+			readBool(value, isLeftHanded);
+		if (key == OptionStrings::Controls_UseTouchScreen)
+			readBool(value, useTouchScreen);
+		if (key == OptionStrings::Controls_UseTouchJoypad) {
+			readBool(value, isJoyTouchArea);
+			if (!minecraft->useTouchscreen())
+				isJoyTouchArea = false;
+		}
+		if (key == OptionStrings::Controls_FeedbackVibration)
+			readBool(value, destroyVibration);
+		if (key == OptionStrings::Controls_TouchButtons)
+			readBool(value, touchButtons);
+		if (key == OptionStrings::Controls_TouchButtonSize) {
+			int v;
+			if (readInt(value, v) && v >= 0 && v < TOUCH_BUTTON_SIZE_STEPS)
+				touchButtonSize = v;
+		}
+
+		if (key == OptionStrings::Graphics_QualityLevel) {
+			int v;
+			if (readInt(value, v)) {
+				// The ladder was re-ordered: the distance now starts dropping
+				// one rung earlier, so migrate saves written by the old order.
+				// Old 5..8 became new 4..7, and the old default rung 4 became
+				// the new top rung 1, otherwise L still cannot walk down to a
+				// rung that changes the distance.
+				if (v >= 4)
+					v -= 1;
+				else if (v == 3)
+					v = 0;
+				if (v < QUALITY_LEVEL_MIN) v = QUALITY_LEVEL_MIN;
+				if (v > QUALITY_LEVEL_MAX) v = QUALITY_LEVEL_MAX;
+				graphicsLevel = v;
+			}
+		}
+		if (key == OptionStrings::Graphics_QualityBase) {
+			int v;
+			if (readInt(value, v)) {
+				if (v < QUALITY_MIN_DISTANCE) v = QUALITY_MIN_DISTANCE;
+				if (v > RENDER_DISTANCE_MAX) v = RENDER_DISTANCE_MAX;
+				graphicsBaseDistance = v;
+			}
+		}
+
+		// Graphics
+		if (key == OptionStrings::Graphics_RenderDistance) {
+			int v;
+			// Stored in chunks now, but older files held a 0..3 index.
+			if (readInt(value, v)) {
+				if (v >= 0 && v <= 3)
+					v = 4 - v;
+				if (v < RENDER_DISTANCE_MIN) v = RENDER_DISTANCE_MIN;
+				if (v > RENDER_DISTANCE_MAX) v = RENDER_DISTANCE_MAX;
+				viewDistance = v;
+				// Remember it as the base the ladder counts down from.
+				graphicsBaseDistance = v;
+			}
+		}
+		if (key == OptionStrings::Graphics_Fancy)
+			readBool(value, fancyGraphics);
+		if (key == OptionStrings::Graphics_Fog)
+			readBool(value, fog);
+		if (key == OptionStrings::Graphics_AmbientOcclusion)
+			readBool(value, ambientOcclusion);
+		if (key == OptionStrings::Graphics_ViewBobbing)
+			readBool(value, bobView);
+		if (key == OptionStrings::Graphics_Anaglyph)
+			readBool(value, anaglyph3d);
+		if (key == OptionStrings::Graphics_LimitFramerate)
+			readBool(value, limitFramerate);
+		if (key == OptionStrings::Graphics_HideGui)
+			readBool(value, hideGui);
+		if (key == OptionStrings::Graphics_GuiScale) {
+			int v;
+			if (readInt(value, v) && v >= 1 && v <= 4)
+				guiScale = v;
+		}
+		if (key == OptionStrings::Feedback_ShowFps)
+			readBool(value, showFps);
+
+		// Sound
+		if (key == OptionStrings::Audio_Music)
+			readFloat(value, music);
+		if (key == OptionStrings::Audio_Sound)
+			readFloat(value, sound);
+	}
+}
+
+void Options::save()
+{
+	StringVector stringVec;
+	// Game
+	addOptionToSaveOutput(stringVec, OptionStrings::Multiplayer_ServerVisible, serverVisible);
+	addOptionToSaveOutput(stringVec, OptionStrings::Game_DifficultyLevel, difficulty);
+
+	// Input
+	addOptionToSaveOutput(stringVec, OptionStrings::Controls_InvertMouse, invertYMouse);
+	addOptionToSaveOutput(stringVec, OptionStrings::Controls_Sensitivity, sensitivity);
+	addOptionToSaveOutput(stringVec, OptionStrings::Controls_TouchSensitivity, touchSensitivity);
+	addOptionToSaveOutput(stringVec, OptionStrings::Controls_IsLefthanded, isLeftHanded);
+	addOptionToSaveOutput(stringVec, OptionStrings::Controls_UseTouchScreen, useTouchScreen);
+	addOptionToSaveOutput(stringVec, OptionStrings::Controls_UseTouchJoypad, isJoyTouchArea);
+	addOptionToSaveOutput(stringVec, OptionStrings::Controls_FeedbackVibration, destroyVibration);
+	addOptionToSaveOutput(stringVec, OptionStrings::Controls_TouchButtons, touchButtons);
+	addOptionToSaveOutput(stringVec, OptionStrings::Controls_TouchButtonSize, touchButtonSize);
+	addOptionToSaveOutput(stringVec, OptionStrings::Feedback_ShowFps, showFps);
+
+	// Graphics - none of these were ever written before, so every graphics
+	// setting came back at its default on the next launch.
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_RenderDistance, viewDistance);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Fancy, fancyGraphics);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Fog, fog);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_AmbientOcclusion, ambientOcclusion);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_ViewBobbing, bobView);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_Anaglyph, anaglyph3d);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_LimitFramerate, limitFramerate);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_HideGui, hideGui);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_GuiScale, guiScale);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_QualityLevel, graphicsLevel);
+	addOptionToSaveOutput(stringVec, OptionStrings::Graphics_QualityBase, graphicsBaseDistance);
+
+	// Sound
+	addOptionToSaveOutput(stringVec, OptionStrings::Audio_Music, music);
+	addOptionToSaveOutput(stringVec, OptionStrings::Audio_Sound, sound);
+
+	// Without this call the vector was thrown away and nothing ever
+	// reached the disk.
+	optionsFile.save(stringVec);
+}
+void Options::addOptionToSaveOutput(StringVector& stringVector, std::string name, bool boolValue) {
+	std::stringstream ss;
+	ss << name << ":" << boolValue;
+	stringVector.push_back(ss.str());
+}
+void Options::addOptionToSaveOutput(StringVector& stringVector, std::string name, float floatValue) {
+	std::stringstream ss;
+	ss << name << ":" << floatValue;
+	stringVector.push_back(ss.str());
+}
+void Options::addOptionToSaveOutput(StringVector& stringVector, std::string name, int intValue) {
+	std::stringstream ss;
+	ss << name << ":" << intValue;
+	stringVector.push_back(ss.str());
+}
+
+std::string Options::getMessage( const Option* item )
+{
+	return "Options::getMessage - Not implemented";
+
+	//Language language = Language.getInstance();
+	//std::string caption = language.getElement(item.getCaptionId()) + ": ";
+
+	//if (item.isProgress()) {
+	//    float progressValue = getProgressValue(item);
+
+	//    if (item == Option.SENSITIVITY) {
+	//        if (progressValue == 0) {
+	//            return caption + language.getElement("options.sensitivity.min");
+	//        }
+	//        if (progressValue == 1) {
+	//            return caption + language.getElement("options.sensitivity.max");
+	//        }
+	//        return caption + (int) (progressValue * 200) + "%";
+	//    } else {
+	//        if (progressValue == 0) {
+	//            return caption + language.getElement("options.off");
+	//        }
+	//        return caption + (int) (progressValue * 100) + "%";
+	//    }
+	//} else if (item.isBoolean()) {
+
+	//    bool booleanValue = getBooleanValue(item);
+	//    if (booleanValue) {
+	//        return caption + language.getElement("options.on");
+	//    }
+	//    return caption + language.getElement("options.off");
+	//} else if (item == Option.RENDER_DISTANCE) {
+	//    return caption + language.getElement(RENDER_DISTANCE_NAMES[viewDistance]);
+	//} else if (item == Option.DIFFICULTY) {
+	//    return caption + language.getElement(DIFFICULTY_NAMES[difficulty]);
+	//} else if (item == Option.GUI_SCALE) {
+	//    return caption + language.getElement(GUI_SCALE[guiScale]);
+	//} else if (item == Option.GRAPHICS) {
+	//    if (fancyGraphics) {
+	//        return caption + language.getElement("options.graphics.fancy");
+	//    }
+	//    return caption + language.getElement("options.graphics.fast");
+	//}
+
+	//return caption;
+}
+
+std::string Options::getValueText( const Option* item )
+{
+	if (item == NULL)
+		return "";
+	if (item == &Option::TOUCH_BUTTON_SIZE) {
+		char sizeBuf[16];
+		sprintf(sizeBuf, "%d%%", (int)(getTouchButtonSizeScale(touchButtonSize) * 100.0f + 0.5f));
+		return sizeBuf;
+	}
+	if (item->isBoolean())
+		return getBooleanValue(item) ? "On" : "Off";
+	if (item->isInt()) {
+		char intBuf[16];
+		sprintf(intBuf, "%d", getIntValue(item));
+		return intBuf;
+	}
+	if (item->isProgress()) {
+		char floatBuf[16];
+		sprintf(floatBuf, "%d%%", (int)(getProgressValue(item) * 100.0f + 0.5f));
+		return floatBuf;
+	}
+	return "";
+}
+
+/*static*/
+bool Options::readFloat(const std::string& string, float& value) {
+	if (string == "true" || string == "YES")  { value = 1; return true; }
+	if (string == "false" || string == "NO") { value = 0; return true; }
+#ifdef _WIN32
+	if (sscanf_s(string.c_str(), "%f", &value))
+		return true;
+#else
+	if (sscanf(string.c_str(), "%f", &value))
+		return true;
+#endif
+	return false;
+}
+
+/*static*/
+bool Options::readInt(const std::string& string, int& value) {
+	if (string == "true" || string == "YES")  { value = 1; return true; }
+	if (string == "false" || string == "NO") { value = 0; return true; }
+#ifdef _WIN32
+	if (sscanf_s(string.c_str(), "%d", &value))
+		return true;
+#else
+	if (sscanf(string.c_str(), "%d", &value))
+		return true;
+#endif
+	return false;
+}
+
+/*static*/
+bool Options::readBool(const std::string& string, bool& value) {
+	std::string s = Util::stringTrim(string);
+	if (string == "true" || string == "1" || string == "YES")  { value = true;  return true; }
+	if (string == "false" || string == "0" || string == "NO") { value = false; return true; }
+	return false;
+}
+
+void Options::notifyOptionUpdate( const Option* option, bool value ) {
+	minecraft->optionUpdated(option, value);
+}
+
+void Options::notifyOptionUpdate( const Option* option, float value ) {
+	minecraft->optionUpdated(option, value);
+}
+
+void Options::notifyOptionUpdate( const Option* option, int value ) {
+	minecraft->optionUpdated(option, value);
+}

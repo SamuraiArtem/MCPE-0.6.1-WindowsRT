@@ -1,0 +1,49 @@
+# ==============================================================================
+# Git Ignore for Minecraft PE 0.6.1 (Surface RT / Windows RT)
+# ==============================================================================
+
+# Build and distribution directories
+/build/
+/dist/
+/dist_*/
+/obj*/
+/pkg/
+/bin/
+/out/
+
+# Object and intermediate files
+*.o
+*.obj
+*.pdb
+*.idb
+*.tlog
+*.ilk
+*.exp
+*.map
+map_*.txt
+*.lastbuildstate
+
+# Executables
+*.exe
+*.signed.exe
+
+# Logs and runtime crash dumps
+*.log
+mcpe_log.txt
+crash_arm32.txt
+d3d11_log.txt
+
+# Visual Studio & IDEs
+.vs/
+*.suo
+*.user
+*.userosv
+*.sln.docstates
+.vscode/
+.idea/
+*.vcxproj.user
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
